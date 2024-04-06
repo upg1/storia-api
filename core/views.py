@@ -66,7 +66,7 @@ def upsert_tweets(request):
     # Returning the processed data as JSON response
     return JsonResponse(response_data, safe=False)
 
- def postTopics(posts):
+def postTopics(posts):
  	pass
 
 
@@ -89,7 +89,7 @@ def query_pinecone(query_embedding, twitter_handle):
             )  
     return [(match["id"], match["score"], match["metadata"]) for match in results["matches"]]
 
-@api_retrieve(['GET'])
+# @api_retrieve(['GET'])
 def retrieve_tweet(user_query):
     query_embedding = get_embedding(user_query)
 
@@ -120,7 +120,12 @@ def retrieve_tweet(user_query):
 
     return chosen_tweets
 
-	
+@api_answer(['POST'])
+def answer_query(request):
+    user_query = request.user_query
+    chosen_tweets = retrieve_tweet(user_query)
+
+    # ADD LLM call and pass in chosen Tweets.
 
 
 
