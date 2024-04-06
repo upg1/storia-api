@@ -16,10 +16,12 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
+from core import views
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/hello/', hello_world),  # Use HelloWorldView.as_view() if class-based
-    path('api/upsert_data', )
+    path('api/hello/', views.hello_world_view),  # Map the function directly
+    path('upsert-tweets/', views.upsert_tweets, name='upsert_tweets'),
 ]
 

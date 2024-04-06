@@ -51,3 +51,16 @@ def upsert_tweets(request):
     
     # Returning the processed data as JSON response
     return JsonResponse(response_data, safe=False)
+
+ def postTopics(posts):
+ 	pass
+
+@api_upsert(['GET'])
+def get_top_topics(request):
+
+	
+
+
+
+
+
