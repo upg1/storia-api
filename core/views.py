@@ -25,7 +25,8 @@ def get_embedding(text, model=EMBEDDING_MODEL):
       input=text
     )
     print("gone through")
-    return result["data"][0]["embedding"]
+    # return result["data"][0]["embedding"]
+    return result.data[0].embedding
 
 @api_view(['POST'])
 def upsert_tweets(request):
@@ -75,23 +76,23 @@ def postTopics(posts):
  	pass
 
 
-def query_pinecone(query_embedding, twitter_handle):
-    if (len(twitter_handle) == 0):
-        results = index.query(
+def query_pinecone(query_embedding ): #twitter_handle):
+    # if (len(twitter_handle) == 0):
+    results = index.query(
                 vector=query_embedding, 
                 top_k=10, 
                 include_metadata=True
-            )  
-    else:
-        results = index.query(
-                # namespace=ns, 
-                vector=query_embedding, 
-                top_k=10, 
-                filter = {
-                        "screen_name": {"$eq": twitter_handle}
-                },
-                include_metadata=True
-            )  
+    )  
+    # else:
+    #     results = index.query(
+    #             # namespace=ns, 
+    #             vector=query_embedding, 
+    #             top_k=10, 
+    #             filter = {
+    #                     "screen_name": {"$eq": twitter_handle}
+    #             },
+    #             include_metadata=True
+    #         )  
     return [(match["id"], match["score"], match["metadata"]) for match in results["matches"]]
 
 # @api_retrieve(['GET'])
@@ -114,7 +115,7 @@ def retrieve_tweet(user_query):
         print(f"Score: {score}")
         print(f"Metadata: {metadata}")
 
-        tweet = metadata["full_text"]
+        tweet = metadata["tweet_text"]
         #  = metadata["transcript_chunk"]
      
         scores.append(score)
@@ -127,9 +128,12 @@ def retrieve_tweet(user_query):
 
 @api_view(['POST'])
 def answer_query(request):
-    user_query = request.user_query
+    user_query = json.loads(request.body)
+    # user_query = request.user_query
     chosen_tweets = retrieve_tweet(user_query)
-    return {"Hello" : "World"}
+    print(chosen_tweets)
+    # return {"Hello" : "World"}
+    return JsonResponse("completed request", safe=False)
 
     # ADD LLM call and pass in chosen Tweets.
 
