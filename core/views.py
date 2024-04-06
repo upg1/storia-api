@@ -16,6 +16,21 @@ PINECONE_CREDENTIALS = os.getenv('PINECONE_API_KEY')
 pc = Pinecone(api_key=PINECONE_CREDENTIALS)
 index = pc.Index("storia")
 
+# How to use the inference API with huggingface:
+
+# import requests
+
+# API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
+# headers = {"Authorization": "Bearer xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
+
+# def query(payload):
+# 	response = requests.post(API_URL, headers=headers, json=payload)
+# 	return response.json()
+	
+# output = query({
+# 	"inputs": "Can you please let us know more details about your ",
+# })
+
 """
 Embedding / Pinecone related
 """
