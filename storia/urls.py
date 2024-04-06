@@ -23,6 +23,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/hello/', views.hello_world_view),  # Map the function directly
     path('upsert-tweets/', views.upsert_tweets, name='upsert_tweets'),
+    path('retrieve_tweet/', views.retrieve_tweet, name='retrieve_tweets')
     path('get_top_topics/', views.get_top_topics, name='get_top_topics'),
 ]
 

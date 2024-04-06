@@ -11,7 +11,7 @@ from pinecone import Pinecone, ServerlessSpec
 EMBEDDING_MODEL = "text-embedding-ada-002"
 PINECONE_CREDENTIALS = os.getenv('PINECONE_CREDENTIALS')
 pc = Pinecone(api_key=PINECONE_CREDENTIALS)
-index = pc.Index("storie")
+index = pc.Index("storia")
 
 """
 Embedding / Pinecone related
@@ -69,8 +69,56 @@ def upsert_tweets(request):
  def postTopics(posts):
  	pass
 
-@api_upsert(['GET'])
-def get_top_topics(request):
+
+def query_pinecone(query_embedding, twitter_handle):
+    if (len(twitter_handle) == 0):
+        results = index.query(
+                vector=query_embedding, 
+                top_k=10, 
+                include_metadata=True
+            )  
+    else:
+        results = index.query(
+                # namespace=ns, 
+                vector=query_embedding, 
+                top_k=10, 
+                filter = {
+                        "screen_name": {"$eq": twitter_handle}
+                },
+                include_metadata=True
+            )  
+    return [(match["id"], match["score"], match["metadata"]) for match in results["matches"]]
+
+@api_retrieve(['GET'])
+def retrieve_tweet(user_query):
+    query_embedding = get_embedding(user_query)
+
+    get_tweets = query_pinecone(query_embedding)
+
+    print("\n\n")
+    print("______________________________________________________\n") 
+    print(f"Successfully retreived: {len(get_tweets)} sources from search")
+
+    scores = []
+    chosen_tweets = []
+
+    for tweet_item in get_tweets:
+
+        chunk_identifier, score, metadata = tweet_item[0], tweet_item[1], tweet_item[2]
+        print(f"Chunk Identifier: {chunk_identifier}")
+        print(f"Score: {score}")
+        print(f"Metadata: {metadata}")
+
+        tweet = metadata["full_text"]
+        #  = metadata["transcript_chunk"]
+     
+        scores.append(score)
+        chosen_tweets.append(tweet)
+
+    max_similarity = max(scores)
+    print("MAX SIMILIARITY:", max_similarity)
+
+    return chosen_tweets
 
 	
 
