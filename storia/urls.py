@@ -20,5 +20,6 @@ from django.urls import path
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/hello/', hello_world),  # Use HelloWorldView.as_view() if class-based
+    path('api/upsert_data', )
 ]
 
