@@ -5,13 +5,13 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 import json
 import os
-
 import openai
 from pinecone import Pinecone, ServerlessSpec
 
 EMBEDDING_MODEL = "text-embedding-ada-002"
 PINECONE_CREDENTIALS = os.getenv('PINECONE_CREDENTIALS')
 pc = Pinecone(api_key=PINECONE_CREDENTIALS)
+index = pc.Index("storie")
 
 """
 Embedding / Pinecone related
@@ -43,10 +43,24 @@ def upsert_tweets(request):
         metadata['created_at'] = tweet_data.get('created_at', '')
 
         tweet_embedding = get_embedding(tweet)
-        
+        tweet_id = tweet_data.get('id_str', '')
 
-        # Assuming you need to do something with metadata and tweet here,
-        # for demonstration, we're just appending it to a response list.
+        tweet_data = [{
+            "id": f"{tweet_id}",
+            "values": tweet_embedding,
+            "metadata": {
+                "screen_name": metadata['screen_name'],
+                "tweet_text": metadata['full_text'],
+                "created_at": metadata['created_at'],
+                "url": metadata['url'],
+                "user": metadata['user']
+            }
+        }]
+        print("Upserting title embedding data")
+        index.upsert(tweet_data)
+
+        # # Assuming you need to do something with metadata and tweet here,
+        # # for demonstration, we're just appending it to a response list.
         response_data.append({'metadata': metadata, 'tweet': tweet})
     
     # Returning the processed data as JSON response
