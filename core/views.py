@@ -20,7 +20,7 @@ index = pc.Index("storia")
 Embedding / Pinecone related
 """
 def get_embedding(text, model=EMBEDDING_MODEL):
-    result = openai.Embedding.create(
+    result = openai.embeddings.create(
       model=model,
       input=text
     )
@@ -32,6 +32,8 @@ def upsert_tweets(request):
     # Assuming the body of the request is the raw JSON data you need to process
     data_json = json.loads(request.body)
     response_data = []
+
+    data_json = data_json['data']
     
     for tweet_data in data_json:
         metadata = {}
@@ -127,6 +129,7 @@ def retrieve_tweet(user_query):
 def answer_query(request):
     user_query = request.user_query
     chosen_tweets = retrieve_tweet(user_query)
+    return {"Hello" : "World"}
 
     # ADD LLM call and pass in chosen Tweets.
 
