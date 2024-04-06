@@ -13,23 +13,17 @@ load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 EMBEDDING_MODEL = "text-embedding-ada-002"
 PINECONE_CREDENTIALS = os.getenv('PINECONE_API_KEY')
+HUGGING_FACE = os.getenv("HUGGING_FACE_KEY")
 pc = Pinecone(api_key=PINECONE_CREDENTIALS)
 index = pc.Index("storia")
 
-# How to use the inference API with huggingface:
+from openai import OpenAI
 
-# import requests
+client = OpenAI(
+	base_url="https://hnkyim7dr0wn0en3.us-east-1.aws.endpoints.huggingface.cloud/v1/", 
+	api_key= HUGGING_FACE 
+)
 
-# API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
-# headers = {"Authorization": "Bearer xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
-
-# def query(payload):
-# 	response = requests.post(API_URL, headers=headers, json=payload)
-# 	return response.json()
-	
-# output = query({
-# 	"inputs": "Can you please let us know more details about your ",
-# })
 
 """
 Embedding / Pinecone related
@@ -131,10 +125,11 @@ def retrieve_tweet(user_query):
         print(f"Metadata: {metadata}")
 
         tweet = metadata["tweet_text"]
+        handle = metadata["screen_name"]
         #  = metadata["transcript_chunk"]
      
         scores.append(score)
-        chosen_tweets.append(tweet)
+        chosen_tweets.append(["tweet: " + tweet, "handle: " + handle])
 
     max_similarity = max(scores)
     print("MAX SIMILIARITY:", max_similarity)
@@ -144,15 +139,35 @@ def retrieve_tweet(user_query):
 @api_view(['POST'])
 def answer_query(request):
     user_query = json.loads(request.body)
-    # user_query = request.user_query
+    print("User Query: ", user_query)
     chosen_tweets = retrieve_tweet(user_query)
     print(chosen_tweets)
-    # return {"Hello" : "World"}
-    return JsonResponse("completed request", safe=False)
-
     # ADD LLM call and pass in chosen Tweets.
+    # Example structure of chosen_tweets: [["tweet1", "@handle1"], ["tweet2", "@handle2"]]
+    chosen_tweets_str = "\n".join([f'{tweet}: {handle}' for tweet, handle in chosen_tweets])
+    prompt = "Please use the following tweets to give the user a summary about their query. Please cite the twitter handles and only use the ones that are presented as handles. " + chosen_tweets_str
 
 
 
+    chat_completion = client.chat.completions.create(
+        model="tgi",
+        messages=[
+        {
+            "role": "user",
+            "content": user_query["user_query"] 
+        },
+        {
+            "role": "assistant",
+            "content": prompt
+        },
+    ],
+        stream=True,
+        max_tokens=500
+    )
+
+    for message in chat_completion:
+        print(message.choices[0].delta.content, end="")
+
+    return JsonResponse("completed request", safe=False)
 
 
