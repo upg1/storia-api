@@ -3,3 +3,4 @@ pinecone-client
 apify-client
 djangorestframework
 django-cors-headers
+python-dotenv
