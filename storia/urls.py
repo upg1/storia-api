@@ -21,9 +21,9 @@ from core import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/hello/', views.hello_world_view),  # Map the function directly
+    # path('api/hello/', views.hello_world_view),  # Map the function directly
     path('upsert-tweets/', views.upsert_tweets, name='upsert_tweets'),
-    path('answer_query/', views.answer_query, name='answer_query')
-    path('get_top_topics/', views.get_top_topics, name='get_top_topics'),
+    path('answer_query/', views.answer_query, name='answer_query'),
+    # path('get_top_topics/', views.get_top_topics, name='get_top_topics'),
 ]
 

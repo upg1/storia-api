@@ -7,9 +7,12 @@ import json
 import os
 import openai
 from pinecone import Pinecone, ServerlessSpec
+from dotenv import load_dotenv
+load_dotenv()
 
+openai.api_key = os.getenv("OPENAI_API_KEY")
 EMBEDDING_MODEL = "text-embedding-ada-002"
-PINECONE_CREDENTIALS = os.getenv('PINECONE_CREDENTIALS')
+PINECONE_CREDENTIALS = os.getenv('PINECONE_API_KEY')
 pc = Pinecone(api_key=PINECONE_CREDENTIALS)
 index = pc.Index("storia")
 
@@ -24,7 +27,7 @@ def get_embedding(text, model=EMBEDDING_MODEL):
     print("gone through")
     return result["data"][0]["embedding"]
 
-@api_upsert(['POST'])
+@api_view(['POST'])
 def upsert_tweets(request):
     # Assuming the body of the request is the raw JSON data you need to process
     data_json = json.loads(request.body)
@@ -120,7 +123,7 @@ def retrieve_tweet(user_query):
 
     return chosen_tweets
 
-@api_answer(['POST'])
+@api_view(['POST'])
 def answer_query(request):
     user_query = request.user_query
     chosen_tweets = retrieve_tweet(user_query)
