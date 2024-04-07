@@ -2,6 +2,15 @@ from django.shortcuts import render
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from django.http import JsonResponse, StreamingHttpResponse
+from langchain.schema import (
+    HumanMessage,
+    SystemMessage,
+)
+from langchain_community.chat_models.huggingface import ChatHuggingFace
+from langchain_community.llms import HuggingFaceHub
+from langchain_core.prompts import PromptTemplate
+
+from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from gensim.corpora import Dictionary
 from gensim.models import LdaModel
@@ -10,9 +19,16 @@ import re
 import json
 import os
 import openai
+from langchain_openai import OpenAIEmbeddings
 from pinecone import Pinecone, ServerlessSpec
+from langchain_pinecone import PineconeVectorStore
+from apify_client import ApifyClient
 from dotenv import load_dotenv
-load_dotenv("secrets.env")
+
+import uuid 
+
+
+load_dotenv()
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 EMBEDDING_MODEL = "text-embedding-ada-002"
@@ -20,6 +36,19 @@ PINECONE_CREDENTIALS = os.getenv('PINECONE_API_KEY')
 HUGGING_FACE = os.getenv("HUGGING_FACE_KEY")
 pc = Pinecone(api_key=PINECONE_CREDENTIALS)
 index = pc.Index("storia")
+
+# Langchain pinecone vector store:
+
+from langchain_openai import OpenAIEmbeddings
+
+embeddings = OpenAIEmbeddings(model=EMBEDDING_MODEL)
+
+
+
+vectorstore = PineconeVectorStore(index_name="storia", embedding=embeddings)
+
+
+
 
 from openai import OpenAI
 
@@ -60,6 +89,9 @@ def upsert_tweets(request):
         metadata['full_text'] = tweet
         metadata['url'] = f"https://twitter.com/{user_data.get('screen_name', '')}/status/{tweet_data.get('id_str', '')}"
         metadata['created_at'] = tweet_data.get('created_at', '')
+        # An id tying the tweet to the request that created it. 
+        metadata['request_id'] = uuid.uuid4()
+
 
         tweet_embedding = get_embedding(tweet)
         tweet_id = tweet_data.get('id_str', '')
@@ -171,12 +203,13 @@ def retrieve_tweet(user_query):
             print(f"Score: {score}")
             print(f"Metadata: {metadata}")
 
-            tweet = metadata["tweet_text"]
-            handle = metadata["screen_name"]
-            #  = metadata["transcript_chunk"]
-        
-            scores.append(score)
-            chosen_tweets.append(["tweet: " + tweet, "twitter handle: " + handle])
+        tweet = metadata["tweet_text"]
+        handle = metadata["screen_name"]
+        created_at = metadata["created_at"]
+        #  = metadata["transcript_chunk"]
+     
+        scores.append(score)
+        chosen_tweets.append(["tweet: " + tweet, "handle: " + handle, "created_at: " + handle])
 
         max_similarity = max(scores)
         print("MAX SIMILIARITY:", max_similarity)
@@ -226,5 +259,95 @@ def answer_query(request):
         print(message.choices[0].delta.content, end="")
 
     return JsonResponse(final_response_content, safe=False)
+
+def fetchPostsByHandles(handle_list):
+	apify_client = ApifyClient(APIFY_APP_TOKEN)
+	run_input = {
+	    "handles": handle_list,
+	    "tweetsDesired": 100,
+	    "addUserInfo": True,
+	    "startUrls": [],
+	    "proxyConfig": { "useApifyProxy": True },
+	}
+
+
+	# Start an actor and wait for it to finish
+	actor_call = apify_client.actor('quacker/twitter-scraper').call(run_input=run_input)
+
+	# Fetch results from the actor's default database
+	for item in apify_client.dataset(run["defaultDatasetId"]).iterate_items():
+    print(item)
+
+
+	vectorstore.add_texts(texts)
+
+
+
+
+def huggingface_chat_with_system_prompt(system_prompt_str, human_prompt_str)
+
+	default_system_prompt_str = """You are a journalist and must use the following tweets 
+	to answer the question at the end by constructing a narrative about the timeline of the tweets. 
+	use tweet metadata like created_at to establish the timeline, and in each step of the timeline, 
+	specify two or three sentences explaining that trending tweet. 
+
+	{context}
+
+	Question: {question}
+
+	Helpful Answer:"""
+	custom_rag_prompt = PromptTemplate.from_template(default_system_prompt_str)
+
+	retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 6})
+	rag_chain = (
+	    {"context": retriever | format_docs, "question": RunnablePassthrough()}
+	    | custom_rag_prompt
+	    | llm
+	    | StrOutputParser()
+	)
+
+	res = rag_chain.invoke(human_prompt_str)
+	print(res.content)
+	return res.content
+
+# @api_retrieve(['GET'])
+def get_tweets_by_handles(user_query):
+    handle_list = json.loads(request.body)
+
+    hundredPosts = fetchPostsByHandles(handle_list)
+
+    return JsonResponse(hundredPosts, safe=False)
+
+@api_view(['POST'])
+def system_prompt_test(request):
+    user_query = json.loads(request.body)
+    print(chosen_tweets)
+    # ADD LLM call and pass in chosen Tweets.
+    # Example structure of chosen_tweets: [["tweet1", "@handle1"], ["tweet2", "@handle2"]]
+    chosen_tweets_str = "\n".join([f'{tweet}: {handle}' for tweet, handle in chosen_tweets])
+    prompt = "Please use the following tweets to give the user a summary about their query. Please cite the twitter handles and only use the ones that are presented as handles. " + chosen_tweets_str
+
+
+
+    chat_completion = client.chat.completions.create(
+        model="tgi",
+        messages=[
+        {
+            "role": "user",
+            "content": user_query["user_query"] 
+        },
+        {
+            "role": "assistant",
+            "content": prompt
+        },
+    ],
+        stream=True,
+        max_tokens=500
+    )
+
+    for message in chat_completion:
+        print(message.choices[0].delta.content, end="")
+
+    return JsonResponse("completed request", safe=False)
 
 
