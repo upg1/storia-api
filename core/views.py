@@ -12,7 +12,7 @@ import os
 import openai
 from pinecone import Pinecone, ServerlessSpec
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv("secrets.env")
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 EMBEDDING_MODEL = "text-embedding-ada-002"
@@ -128,30 +128,31 @@ def postTopics(posts):
     return topics_for_posts
 
 
-def query_pinecone(query_embedding ): #twitter_handle):
-    # if (len(twitter_handle) == 0):
-    results = index.query(
+def query_pinecone(query_embedding, handles):
+    print("handles", handles)
+    if (len(handles) == 0):
+        results = index.query(
+                    vector=query_embedding, 
+                    top_k=10, 
+                    include_metadata=True
+        )  
+    else:
+        results = index.query(
                 vector=query_embedding, 
                 top_k=10, 
+                filter = {
+                        "screen_name": {"$in": handles}
+                },
                 include_metadata=True
-    )  
-    # else:
-    #     results = index.query(
-    #             # namespace=ns, 
-    #             vector=query_embedding, 
-    #             top_k=10, 
-    #             filter = {
-    #                     "screen_name": {"$eq": twitter_handle}
-    #             },
-    #             include_metadata=True
-    #         )  
+            )  
     return [(match["id"], match["score"], match["metadata"]) for match in results["matches"]]
 
 # @api_retrieve(['GET'])
 def retrieve_tweet(user_query):
-    query_embedding = get_embedding(user_query)
+    query = user_query["user_query"]
+    query_embedding = get_embedding(query)
 
-    get_tweets = query_pinecone(query_embedding)
+    get_tweets = query_pinecone(query_embedding, user_query["handles_mentioned"])
 
     print("\n\n")
     print("______________________________________________________\n") 
@@ -172,7 +173,7 @@ def retrieve_tweet(user_query):
         #  = metadata["transcript_chunk"]
      
         scores.append(score)
-        chosen_tweets.append(["tweet: " + tweet, "handle: " + handle])
+        chosen_tweets.append(["tweet: " + tweet, "twitter handle: " + handle])
 
     max_similarity = max(scores)
     print("MAX SIMILIARITY:", max_similarity)
@@ -182,16 +183,15 @@ def retrieve_tweet(user_query):
 @api_view(['POST'])
 def answer_query(request):
     user_query = json.loads(request.body)
-    print("User Query: ", user_query)
+    print("User Query: ", user_query) #EX: {'user_query': 'tell me about tumors', 'handles_mentioned': ['sama', elonmusk]}
     chosen_tweets = retrieve_tweet(user_query)
     print(chosen_tweets)
-    # ADD LLM call and pass in chosen Tweets.
+
     # Example structure of chosen_tweets: [["tweet1", "@handle1"], ["tweet2", "@handle2"]]
     chosen_tweets_str = "\n".join([f'{tweet}: {handle}' for tweet, handle in chosen_tweets])
-    prompt = "Please use the following tweets to give the user a summary about their query. Please cite the twitter handles and only use the ones that are presented as handles. " + chosen_tweets_str
+    prompt = "Please use the following tweets to give the user a concise summary about their query. Please answer in one short form summary, no bullet points with the twitter handle given printed at the end. " + chosen_tweets_str
 
-
-
+    # LLM call (Mistral 7B model)
     chat_completion = client.chat.completions.create(
         model="tgi",
         messages=[
