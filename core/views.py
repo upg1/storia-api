@@ -129,16 +129,16 @@ def postTopics(posts):
 
 
 def query_pinecone(query_embedding, str_handles):
-    handles = [str_handles]
-    print("handles", handles)
 
-    if (len(handles) == 0):
+    if (len(str_handles) == 0):
         results = index.query(
                     vector=query_embedding, 
                     top_k=10, 
                     include_metadata=True
         )  
     else:
+        handles = [str_handles]
+        print("handles", handles)
         results = index.query(
                 vector=query_embedding, 
                 top_k=10, 
@@ -154,33 +154,37 @@ def retrieve_tweet(user_query):
     query = user_query["user_query"]
     query_embedding = get_embedding(query)
 
-    get_tweets = query_pinecone(query_embedding, user_query["handles_mentioned"])
+    try:
+        get_tweets = query_pinecone(query_embedding, user_query["handles_mentioned"])
 
-    print("\n\n")
-    print("______________________________________________________\n") 
-    print(f"Successfully retreived: {len(get_tweets)} sources from search")
+        print("\n\n")
+        print("______________________________________________________\n") 
+        print(f"Successfully retreived: {len(get_tweets)} sources from search")
 
-    scores = []
-    chosen_tweets = []
+        scores = []
+        chosen_tweets = []
 
-    for tweet_item in get_tweets:
+        for tweet_item in get_tweets:
 
-        chunk_identifier, score, metadata = tweet_item[0], tweet_item[1], tweet_item[2]
-        print(f"Chunk Identifier: {chunk_identifier}")
-        print(f"Score: {score}")
-        print(f"Metadata: {metadata}")
+            chunk_identifier, score, metadata = tweet_item[0], tweet_item[1], tweet_item[2]
+            print(f"Chunk Identifier: {chunk_identifier}")
+            print(f"Score: {score}")
+            print(f"Metadata: {metadata}")
 
-        tweet = metadata["tweet_text"]
-        handle = metadata["screen_name"]
-        #  = metadata["transcript_chunk"]
-     
-        scores.append(score)
-        chosen_tweets.append(["tweet: " + tweet, "twitter handle: " + handle])
+            tweet = metadata["tweet_text"]
+            handle = metadata["screen_name"]
+            #  = metadata["transcript_chunk"]
+        
+            scores.append(score)
+            chosen_tweets.append(["tweet: " + tweet, "twitter handle: " + handle])
 
-    max_similarity = max(scores)
-    print("MAX SIMILIARITY:", max_similarity)
+        max_similarity = max(scores)
+        print("MAX SIMILIARITY:", max_similarity)
 
-    return chosen_tweets
+        return chosen_tweets
+    except:
+        print("No relevant tweets")
+        return "failure"
 
 @api_view(['POST'])
 def answer_query(request):
@@ -188,6 +192,9 @@ def answer_query(request):
     print("User Query: ", user_query) #EX: {'user_query': 'tell me about tumors', 'handles_mentioned': ['sama', elonmusk]}
     chosen_tweets = retrieve_tweet(user_query)
     print(chosen_tweets)
+
+    if (chosen_tweets == "failure"):
+        return JsonResponse("No relevant tweets found. Please try another query!", safe=False)
 
     # Example structure of chosen_tweets: [["tweet1", "@handle1"], ["tweet2", "@handle2"]]
     chosen_tweets_str = "\n".join([f'{tweet}: {handle}' for tweet, handle in chosen_tweets])
