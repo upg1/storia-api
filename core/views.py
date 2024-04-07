@@ -24,6 +24,7 @@ from langchain_openai import OpenAIEmbeddings
 from pinecone import Pinecone, ServerlessSpec
 from langchain_pinecone import PineconeVectorStore
 from apify_client import ApifyClient
+import requests
 from dotenv import load_dotenv
 
 import uuid 
@@ -59,6 +60,16 @@ client = OpenAI(
 	api_key= HUGGING_FACE 
 )
 
+# API_URL = "https://hnkyim7dr0wn0en3.us-east-1.aws.endpoints.huggingface.cloud"
+# headers = {
+# 	"Accept" : "application/json",
+# 	"Authorization": "Bearer " + HUGGING_FACE,
+# 	"Content-Type": "application/json" 
+# }
+
+# def get_query(payload):
+# 	response = requests.post(API_URL, headers=headers, json=payload)
+# 	return response.json()
 
 """
 Embedding / Pinecone related
@@ -251,8 +262,6 @@ def answer_query(request):
         After reading these tweets, what are the 3 most newsworthy topics for general public? 
         What stories, in order of importance, would you want to tell? Limit each timeline to 5 tweets. 
         Do not include irrelevant tweets, not each timeline needs to include 5 tweets. 
-        Next, what are the 3 most newsworthy topics for the specialist community? What stories, in order of importance, would you want to tell? 
-        Limit each timeline to 5 tweets. Do not include irrelevant tweets, not each timeline needs to include 5 tweets.
         """ 
 
     # LLM call (Mistral 7B model)
@@ -268,19 +277,13 @@ def answer_query(request):
             "content": prompt + chosen_tweets_str
         },
     ],
-        stream=True,
-        max_tokens=500
+        stream=False,
+        max_tokens=600
     )
 
-    # for message in chat_completion:
-    #     print(message.choices[0].delta.content, end="")
+    content = chat_completion.choices[0].message.content
 
-    final_response_content = ""
-    for message in chat_completion:
-        final_response_content += message.choices[0].delta.content
-        print(message.choices[0].delta.content, end="")
-
-    return JsonResponse(final_response_content, safe=False)
+    return JsonResponse(content, safe=False)
 
 def fetchPostsByHandles(handle_list):
 	apify_client = ApifyClient(APIFY_API_TOKEN)
