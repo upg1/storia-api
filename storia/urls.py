@@ -24,6 +24,8 @@ urlpatterns = [
     # path('api/hello/', views.hello_world_view),  # Map the function directly
     path('upsert-tweets/', views.upsert_tweets, name='upsert_tweets'),
     path('answer_query/', views.answer_query, name='answer_query'),
+    path('get_handles_posts/', views.get_tweets_by_handles, name='get_handles_posts'),
+
     # path('get_top_topics/', views.get_top_topics, name='get_top_topics'),
 ]
 

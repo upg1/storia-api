@@ -9,6 +9,7 @@ from langchain.schema import (
 from langchain_community.chat_models.huggingface import ChatHuggingFace
 from langchain_community.llms import HuggingFaceHub
 from langchain_core.prompts import PromptTemplate
+from langchain.docstore.document import Document
 
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
@@ -34,6 +35,7 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 EMBEDDING_MODEL = "text-embedding-ada-002"
 PINECONE_CREDENTIALS = os.getenv('PINECONE_API_KEY')
 HUGGING_FACE = os.getenv("HUGGING_FACE_KEY")
+APIFY_API_TOKEN = os.getenv("APIFY_API_TOKEN")
 pc = Pinecone(api_key=PINECONE_CREDENTIALS)
 index = pc.Index("storia")
 
@@ -209,7 +211,7 @@ def retrieve_tweet(user_query):
         #  = metadata["transcript_chunk"]
      
         scores.append(score)
-        chosen_tweets.append(["tweet: " + tweet, "handle: " + handle, "created_at: " + handle])
+        chosen_tweets.append(["tweet: " + tweet, "handle: " + handle, "created_at: " + created_at])
 
         max_similarity = max(scores)
         print("MAX SIMILIARITY:", max_similarity)
@@ -261,7 +263,7 @@ def answer_query(request):
     return JsonResponse(final_response_content, safe=False)
 
 def fetchPostsByHandles(handle_list):
-	apify_client = ApifyClient(APIFY_APP_TOKEN)
+	apify_client = ApifyClient(APIFY_API_TOKEN)
 	run_input = {
 	    "handles": handle_list,
 	    "tweetsDesired": 100,
@@ -274,19 +276,18 @@ def fetchPostsByHandles(handle_list):
 	# Start an actor and wait for it to finish
 	actor_call = apify_client.actor('quacker/twitter-scraper').call(run_input=run_input)
 	items = []
-	for item in apify_client.dataset(run["defaultDatasetId"]).iterate_items():
+	for item in apify_client.dataset(actor_call["defaultDatasetId"]).iterate_items():
 		metadata = {}
-	    metadata['screen_name'] = item['user']['screen_name']
-	    metadata['full_text'] = item['full_text']
-	    metadata['url'] = item['url']
-	    metadata['created_at'] = item['created_at']
-	    # An id tying the tweet to the request that created it. 
-	    metadata['request_id'] = uuid.uuid4()
-		items.append(Document(page_content=item.full_text, metadata=metadata))
-
-	vectorstore.from_documents(items, embedding=embeddings)
+		metadata['screen_name'] = item['user']['screen_name']
+		metadata['full_text'] = item['full_text']
+		metadata['url'] = item['url']
+		metadata['created_at'] = item['created_at']
+		# An id tying the tweet to the request that created it. 
+		metadata['request_id'] = str(uuid.uuid4())
+		items.append(Document(page_content=item["full_text"], metadata=json.loads(json.dumps(metadata))))
+	print(items)
+	vectorstore.from_documents(index_name="storia", documents=items, embedding=embeddings)
 	return items
-
 
 
 
@@ -317,43 +318,13 @@ def huggingface_chat_with_system_prompt(system_prompt_str, human_prompt_str):
 	return res.content
 
 # @api_retrieve(['GET'])
-def get_tweets_by_handles(user_query):
+@api_view(['POST'])
+def get_tweets_by_handles(request):
     handle_list = json.loads(request.body)
 
-    hundredPosts = fetchPostsByHandles(handle_list)
+    hundredPosts = fetchPostsByHandles(handle_list["handles"])
 
     return JsonResponse(hundredPosts, safe=False)
 
-@api_view(['POST'])
-def system_prompt_test(request):
-    user_query = json.loads(request.body)
-    print(chosen_tweets)
-    # ADD LLM call and pass in chosen Tweets.
-    # Example structure of chosen_tweets: [["tweet1", "@handle1"], ["tweet2", "@handle2"]]
-    chosen_tweets_str = "\n".join([f'{tweet}: {handle}' for tweet, handle in chosen_tweets])
-    prompt = "Please use the following tweets to give the user a summary about their query. Please cite the twitter handles and only use the ones that are presented as handles. " + chosen_tweets_str
-
-
-
-    chat_completion = client.chat.completions.create(
-        model="tgi",
-        messages=[
-        {
-            "role": "user",
-            "content": user_query["user_query"] 
-        },
-        {
-            "role": "assistant",
-            "content": prompt
-        },
-    ],
-        stream=True,
-        max_tokens=500
-    )
-
-    for message in chat_completion:
-        print(message.choices[0].delta.content, end="")
-
-    return JsonResponse("completed request", safe=False)
 
 
