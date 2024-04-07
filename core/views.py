@@ -223,12 +223,12 @@ def retrieve_tweet(user_query):
         print("MAX SIMILIARITY:", max_similarity)
 
         return chosen_tweets
-    # except Exception as e: print(e)
-    except:
+    except Exception as e: print(e)
+    # except:
 
-        print("No relevant tweets")
+    #     print("No relevant tweets")
 
-        return "failure"
+    #     return "failure"
 
 @api_view(['POST'])
 def answer_query(request):
@@ -247,9 +247,13 @@ def answer_query(request):
     else:
         chosen_tweets_str = "No tweets selected"
     prompt = """
-    Please state the handle first. Then say 'According to the top ten relevant tweets from' [Handle Name]
-    then summarize them concisely. Please answer in the form of one short summary, no bullet points. 
-    """ 
+        You are a journalist.
+        After reading these tweets, what are the 3 most newsworthy topics for general public? 
+        What stories, in order of importance, would you want to tell? Limit each timeline to 5 tweets. 
+        Do not include irrelevant tweets, not each timeline needs to include 5 tweets. 
+        Next, what are the 3 most newsworthy topics for the specialist community? What stories, in order of importance, would you want to tell? 
+        Limit each timeline to 5 tweets. Do not include irrelevant tweets, not each timeline needs to include 5 tweets.
+        """ 
 
     # LLM call (Mistral 7B model)
     chat_completion = client.chat.completions.create(
