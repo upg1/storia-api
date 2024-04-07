@@ -273,18 +273,33 @@ def fetchPostsByHandles(handle_list):
 
 	# Start an actor and wait for it to finish
 	actor_call = apify_client.actor('quacker/twitter-scraper').call(run_input=run_input)
-
+	items = []
 	# Fetch results from the actor's default database
+	metadata = {}
+    metadata['user'] = user_data.get('name', '')
+    metadata['screen_name'] = user_data.get('screen_name', '')
+    metadata['full_text'] = tweet
+    metadata['url'] = f"https://twitter.com/{user_data.get('screen_name', '')}/status/{tweet_data.get('id_str', '')}"
+    metadata['created_at'] = tweet_data.get('created_at', '')
+    # An id tying the tweet to the request that created it. 
+    metadata['request_id'] = uuid.uuid4()
 	for item in apify_client.dataset(run["defaultDatasetId"]).iterate_items():
-    print(item)
+		metadata = {}
+	    metadata['screen_name'] = item['user']['screen_name']
+	    metadata['full_text'] = item['full_text']
+	    metadata['url'] = item['url']
+	    metadata['created_at'] = item['created_at']
+	    # An id tying the tweet to the request that created it. 
+	    metadata['request_id'] = uuid.uuid4()
+		items.append(Document(page_content=item.full_text, metadata=metadata))
+
+	vectorstore.from_documents(items, embedding=embeddings)
+	return items
 
 
-	vectorstore.add_texts(texts)
 
 
-
-
-def huggingface_chat_with_system_prompt(system_prompt_str, human_prompt_str)
+def huggingface_chat_with_system_prompt(system_prompt_str, human_prompt_str):
 
 	default_system_prompt_str = """You are a journalist and must use the following tweets 
 	to answer the question at the end by constructing a narrative about the timeline of the tweets. 
