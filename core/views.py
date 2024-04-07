@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
-from django.http import JsonResponse, StreamingHttpResponse
+from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from gensim.corpora import Dictionary
 from gensim.models import LdaModel
@@ -10,8 +10,11 @@ import re
 import json
 import os
 import openai
-from pinecone import Pinecone, ServerlessSpec
+from pinecone import Pinecone
 from dotenv import load_dotenv
+import requests
+import io
+from PIL import Image
 load_dotenv("secrets.env")
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -28,6 +31,12 @@ client = OpenAI(
 	api_key= HUGGING_FACE 
 )
 
+API_URL = "https://v1xm270kib0u9fb1.us-east-1.aws.endpoints.huggingface.cloud"
+headers = {
+	"Accept" : "image/png",
+	"Authorization": "Bearer " + HUGGING_FACE,
+	"Content-Type": "application/json" 
+}
 
 """
 Embedding / Pinecone related
@@ -40,6 +49,10 @@ def get_embedding(text, model=EMBEDDING_MODEL):
     print("gone through")
     # return result["data"][0]["embedding"]
     return result.data[0].embedding
+
+def create_image_from_query(payload):
+    response = requests.post(API_URL, headers=headers, json=payload)
+    return response.content
 
 @api_view(['POST'])
 def upsert_tweets(request):
@@ -149,7 +162,6 @@ def query_pinecone(query_embedding, str_handles):
             )  
     return [(match["id"], match["score"], match["metadata"]) for match in results["matches"]]
 
-# @api_retrieve(['GET'])
 def retrieve_tweet(user_query):
     query = user_query["user_query"]
     query_embedding = get_embedding(query)
@@ -173,7 +185,6 @@ def retrieve_tweet(user_query):
 
             tweet = metadata["tweet_text"]
             handle = metadata["screen_name"]
-            #  = metadata["transcript_chunk"]
         
             scores.append(score)
             chosen_tweets.append(["tweet: " + tweet, "twitter handle: " + handle])
@@ -198,7 +209,20 @@ def answer_query(request):
 
     # Example structure of chosen_tweets: [["tweet1", "@handle1"], ["tweet2", "@handle2"]]
     chosen_tweets_str = "\n".join([f'{tweet}: {handle}' for tweet, handle in chosen_tweets])
-    prompt = "Please use the following tweets to give the user a concise summary about their query. Please answer in one short form summary, no bullet points with the twitter handle given printed at the end. " + chosen_tweets_str
+    prompt = """
+        Please use the following tweets to give the user a concise summary about their
+        query. Please answer in one short form summary, no bullet points with the twitter
+        handle given printed at the end. "
+        """
+    
+    output = create_image_from_query({
+        "inputs": "a simple cartoon styled image. It should be related to the user query. No words. User Query: " + user_query["user_query"] + chosen_tweets_str,
+        "parameters": {}
+    })
+
+    # Image generation: stable-diffusion-xl-base-1-0-pow
+    image = Image.open(io.BytesIO(output))
+    image.show() # Locally display the image
 
     # LLM call (Mistral 7B model)
     chat_completion = client.chat.completions.create(
@@ -210,15 +234,12 @@ def answer_query(request):
         },
         {
             "role": "assistant",
-            "content": prompt
+            "content": prompt + chosen_tweets_str
         },
     ],
         stream=True,
         max_tokens=500
     )
-
-    # for message in chat_completion:
-    #     print(message.choices[0].delta.content, end="")
 
     final_response_content = ""
     for message in chat_completion:
