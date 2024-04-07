@@ -12,10 +12,14 @@ from langchain_core.prompts import PromptTemplate
 
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
-from gensim.corpora import Dictionary
-from gensim.models import LdaModel
-from gensim.parsing.preprocessing import preprocess_string, strip_tags, strip_punctuation, strip_multiple_whitespaces, strip_numeric, remove_stopwords, stem_text, STOPWORDS
-import re
+import gensim
+from gensim.models import LdaMulticore
+from gensim.corpora.dictionary import Dictionary
+from nltk.stem import WordNetLemmatizer
+import nltk
+from nltk.corpus import stopwords
+from gensim.parsing.preprocessing import STOPWORDS as gensim_stopwords
+nltk.download('stopwords')
 import json
 import os
 import openai
@@ -117,46 +121,32 @@ def upsert_tweets(request):
     # Returning the processed data as JSON response
     return JsonResponse(response_data, safe=False)
 
-def remove_urls(text):
-    url_pattern = re.compile(r'https?://\S+|www\.\S+')
-    return url_pattern.sub('', text)
+@api_view(['POST'])
 
-def remove_emojis(text):
-    emoji_pattern = re.compile("["
-                               u"\U0001F600-\U0001F64F"
-                               u"\U0001F300-\U0001F5FF"
-                               u"\U0001F680-\U0001F6FF"
-                               u"\U0001F1E0-\U0001F1FF"
-                               u"\U00002702-\U000027B0"
-                               u"\U000024C2-\U0001F251"
-                               "]+", flags=re.UNICODE)
-    return emoji_pattern.sub('', text)
+all_stopwords = set(nltk.corpus.stopwords.words('english')).union(gensim_stopwords).union({'medtwitter', 'https', 'www', 'medx'})
 
-additional_stopwords = {"medtwitt", "s", "medx", "type", "common","medtwitter","⁉","🩸","heart🥰","isn","t"}
-all_stopwords = STOPWORDS.union(additional_stopwords)
 
-def remove_stopwords(text):
-    return ' '.join([word for word in text.split() if word not in all_stopwords])
+def lemmatize(text):
+    return WordNetLemmatizer().lemmatize(text, pos='v')
 
-def preprocess(post):
-    post = remove_urls(post)
-    post = remove_emojis(post)
-    post = ' '.join(preprocess_string(post, [lambda x: x.lower(), strip_tags, strip_punctuation, strip_multiple_whitespaces, strip_numeric]))
-    post = remove_stopwords(post)
-    return post.split()
+def preprocess(text):
+    result = []
+    for token in gensim.utils.simple_preprocess(text):
+        if token not in all_stopwords and len(token) > 3:
+            result.append(lemmatize(token))
+    return result
 
 def postTopics(posts):
     processed_posts = [preprocess(post) for post in posts]
     dictionary = Dictionary(processed_posts)
     corpus = [dictionary.doc2bow(text) for text in processed_posts]
-    lda_model = LdaModel(corpus=corpus, id2word=dictionary, num_topics=5, passes=10)
-
+    lda_model = LdaMulticore(corpus, num_topics=10, id2word=dictionary, passes=10, workers=2)
     topics_for_posts = []
     for text in corpus:
-        post_topics = lda_model.get_document_topics(text)
-        actual_topics = [(lda_model.show_topic(topic[0], topn=5), topic[1]) for topic in post_topics]
+        post_topics = sorted(lda_model.get_document_topics(text), key=lambda x: x[1], reverse=True)
+        top_3_topics = post_topics[:3]
+        actual_topics = [' '.join(word for word, _ in lda_model.show_topic(topic[0], topn=3)) for topic in top_3_topics]
         topics_for_posts.append(actual_topics)
-
     return topics_for_posts
 
 
