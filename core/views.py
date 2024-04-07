@@ -171,13 +171,19 @@ def query_pinecone(query_embedding, str_handles):
                     include_metadata=True
         )  
     else:
-        handles = [str_handles]
-        print("handles", handles)
+        # handles = [str_handles]
+        handles_list = str_handles.split(',')
+
+        # Strip whitespace from each handle
+        handles_list = [handle.strip() for handle in handles_list]
+
+        print("handles", handles_list)
         results = index.query(
                 vector=query_embedding, 
+                namespace="",
                 top_k=10, 
                 filter = {
-                        "screen_name": {"$in": handles}
+                    "screen_name": {"$in": handles_list}
                 },
                 include_metadata=True
             )  
@@ -240,7 +246,10 @@ def answer_query(request):
         chosen_tweets_str = "\n".join([f'Tweet: {tweet}, Handle: {handle}, Created At: {created_at}' for tweet, handle, created_at in chosen_tweets])
     else:
         chosen_tweets_str = "No tweets selected"
-    prompt = "Please use the following tweets to give the user a concise summary about their query. Please answer in one short form summary, no bullet points with the twitter handle given printed at the end. " + chosen_tweets_str
+    prompt = """
+    Please state the handle first. Then say 'According to the top ten relevant tweets from' [Handle Name]
+    then summarize them concisely. Please answer in the form of one short summary, no bullet points. 
+    """ 
 
     # LLM call (Mistral 7B model)
     chat_completion = client.chat.completions.create(
@@ -252,7 +261,7 @@ def answer_query(request):
         },
         {
             "role": "assistant",
-            "content": prompt
+            "content": prompt + chosen_tweets_str
         },
     ],
         stream=True,
