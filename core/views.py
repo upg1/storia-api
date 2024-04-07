@@ -203,23 +203,26 @@ def retrieve_tweet(user_query):
             chunk_identifier, score, metadata = tweet_item[0], tweet_item[1], tweet_item[2]
             print(f"Chunk Identifier: {chunk_identifier}")
             print(f"Score: {score}")
-            print(f"Metadata: {metadata}")
+            # print(f"Metadata: {metadata}")
 
-        tweet = metadata["tweet_text"]
-        handle = metadata["screen_name"]
-        created_at = metadata["created_at"]
-        #  = metadata["transcript_chunk"]
-     
-        scores.append(score)
-        chosen_tweets.append(["tweet: " + tweet, "handle: " + handle, "created_at: " + created_at])
+            tweet = metadata["full_text"]
+            handle = metadata["screen_name"]
+            created_at = metadata["created_at"]
+            #  = metadata["transcript_chunk"]
+        
+            scores.append(score)
+            chosen_tweets.append(["tweet: " + tweet, "handle: " + handle, "created_at: " + created_at])
 
         max_similarity = max(scores)
         print("MAX SIMILIARITY:", max_similarity)
 
         return chosen_tweets
-    except:
-        print("No relevant tweets")
-        return "failure"
+    except Exception as e: print(e)
+    # except:
+
+    #     print("No relevant tweets")
+
+    #     return "failure"
 
 @api_view(['POST'])
 def answer_query(request):
@@ -231,8 +234,12 @@ def answer_query(request):
     if (chosen_tweets == "failure"):
         return JsonResponse("No relevant tweets found. Please try another query!", safe=False)
 
-    # Example structure of chosen_tweets: [["tweet1", "@handle1"], ["tweet2", "@handle2"]]
-    chosen_tweets_str = "\n".join([f'{tweet}: {handle}' for tweet, handle in chosen_tweets])
+    # Example structure of chosen_tweets: [["tweet1", "@handle1", "created_at:"], ["tweet2", "@handle2", "created_at:"]]
+    # chosen_tweets_str = "\n".join([f'{tweet}: {handle}' for tweet, handle in chosen_tweets])
+    if chosen_tweets is not None:
+        chosen_tweets_str = "\n".join([f'Tweet: {tweet}, Handle: {handle}, Created At: {created_at}' for tweet, handle, created_at in chosen_tweets])
+    else:
+        chosen_tweets_str = "No tweets selected"
     prompt = "Please use the following tweets to give the user a concise summary about their query. Please answer in one short form summary, no bullet points with the twitter handle given printed at the end. " + chosen_tweets_str
 
     # LLM call (Mistral 7B model)
