@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
-from django.http import JsonResponse
+from django.http import JsonResponse, StreamingHttpResponse
 from django.views.decorators.http import require_http_methods
 from gensim.corpora import Dictionary
 from gensim.models import LdaModel
@@ -128,8 +128,10 @@ def postTopics(posts):
     return topics_for_posts
 
 
-def query_pinecone(query_embedding, handles):
+def query_pinecone(query_embedding, str_handles):
+    handles = [str_handles]
     print("handles", handles)
+
     if (len(handles) == 0):
         results = index.query(
                     vector=query_embedding, 
@@ -208,9 +210,14 @@ def answer_query(request):
         max_tokens=500
     )
 
+    # for message in chat_completion:
+    #     print(message.choices[0].delta.content, end="")
+
+    final_response_content = ""
     for message in chat_completion:
+        final_response_content += message.choices[0].delta.content
         print(message.choices[0].delta.content, end="")
 
-    return JsonResponse("completed request", safe=False)
+    return JsonResponse(final_response_content, safe=False)
 
 
