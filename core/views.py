@@ -223,12 +223,12 @@ def retrieve_tweet(user_query):
         print("MAX SIMILIARITY:", max_similarity)
 
         return chosen_tweets
-    except Exception as e: print(e)
-    # except:
+    # except Exception as e: print(e)
+    except:
 
-    #     print("No relevant tweets")
+        print("No relevant tweets")
 
-    #     return "failure"
+        return "failure"
 
 @api_view(['POST'])
 def answer_query(request):
